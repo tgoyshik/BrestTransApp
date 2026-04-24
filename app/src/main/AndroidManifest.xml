@@ -1,0 +1,44 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    package="com.example.bresttransapp">
+
+    <!-- Разрешения -->
+    <!-- Доступ к точному местоположению (GPS) -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <!-- Доступ к примерному местоположению (Wi-Fi, мобильные сети) -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Доступ в интернет (нужен для погоды, загрузки в Google Drive и т.д.) -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Доступ к учётным записям Google (нужен для авторизации в Google Drive) -->
+    <uses-permission android:name="android.permission.GET_ACCOUNTS" />
+    <!-- Разрешение на чтение внешнего хранилища (используется при сохранении/открытии CSV) -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <!-- Разрешение на запись во внешнее хранилище -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+
+    <!-- ─────────── Описание приложения ─────────── -->
+    <application
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.BrestTransApp"
+        tools:targetApi="31">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.BrestTransApp">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+    </application>
+</manifest>
