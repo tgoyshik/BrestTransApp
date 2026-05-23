@@ -96,7 +96,26 @@ fun HistoryScreen(
 
                         try {
                             // Превращаем список в JSON
-                            val jsonString = com.google.gson.Gson().toJson(records)
+                            val orderedRecords = records.map { record ->
+                                linkedMapOf(
+                                    "time" to record.time,
+                                    "currentStop" to record.currentStop,
+                                    "nextStop" to record.nextStop,
+                                    "peopleAtStop" to record.peopleAtStop,
+                                    "entered" to record.entered,
+                                    "exited" to record.exited,
+                                    "latitude" to record.latitude,
+                                    "longitude" to record.longitude,
+                                    "weather" to record.weather
+                                )
+                            }
+
+                            val gson = com.google.gson.GsonBuilder()
+                                .setPrettyPrinting()
+                                .disableHtmlEscaping()
+                                .create()
+
+                            val jsonString = gson.toJson(orderedRecords)
 
                             // Записываем в файл
                             file.writeText(jsonString)

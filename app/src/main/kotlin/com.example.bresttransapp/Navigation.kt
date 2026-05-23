@@ -113,7 +113,9 @@ fun MainNavigation(startFromRegistration: Boolean, userLocation: android.locatio
                                 context = context,
                                 records = records.toList(),
                                 folderId = folderId,
-                                credential = credential
+                                credential = credential,
+                                firstName = firstName,
+                                lastName = lastName
                             )
 
                             if (success) {
