@@ -153,7 +153,7 @@
                     stop.x.toDoubleOrNull() ?: 0.0,
                     dist
                 )
-                dist[0] <= 5000
+                dist[0] <= 10
 
             }
         } else false
