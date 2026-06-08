@@ -15,6 +15,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.io.File
 import java.text.SimpleDateFormat
+import android.content.Context
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import java.util.*
 
 @Composable
@@ -23,7 +26,6 @@ fun HistoryScreen(
     records: List<TransportRecord>,
     onDelete: (TransportRecord) -> Unit,
     onDeleteAll: () -> Unit,
-    onExport: () -> Unit,
     onUpload: () -> Unit
 ) {
     val context = LocalContext.current
@@ -32,33 +34,31 @@ fun HistoryScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
-        Text("История записей", style = MaterialTheme.typography.titleLarge)
+
+    Text("История записей", style = MaterialTheme.typography.titleLarge)
         Spacer(modifier = Modifier.height(8.dp))
 
-        LazyColumn(modifier = Modifier.weight(1f)) {
-            items(records) { record ->
-                ElevatedCard(modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp)) {
-                    Column(Modifier.padding(12.dp)) {
-                        Text("${record.time} — ${record.currentStop}", style = MaterialTheme.typography.bodyLarge)
-                        Spacer(Modifier.height(4.dp))
+            records.forEach { record ->
+            ElevatedCard(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                Column(Modifier.padding(12.dp)) {
+                    Text("${record.time} — ${record.currentStop}", style = MaterialTheme.typography.bodyLarge)
+                    Spacer(Modifier.height(4.dp))
 
-                        Text("Заполненность остановки: ${record.peopleAtStop}")
-                        Text("Вошло: ${record.entered}, вышло: ${record.exited}")
-                        Text("Координаты: ${record.latitude}, ${record.longitude}")
-                        Text("Погода: ${record.weather}", style = MaterialTheme.typography.bodySmall)
+                    Text("Заполненность остановки: ${record.peopleAtStop}")
+                    Text("Вошло: ${record.entered}, вышло: ${record.exited}")
+                    Text("Координаты: ${record.latitude}, ${record.longitude}")
+                    Text("Погода: ${record.weather}", style = MaterialTheme.typography.bodySmall)
 
-                        Spacer(Modifier.height(8.dp))
-                        Button(
-                            onClick = { onDelete(record) },
-                            modifier = Modifier.align(Alignment.End),
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                        ) {
-                            Text("Удалить запись")
-                        }
+                    Spacer(Modifier.height(8.dp))
+                    Button(
+                        onClick = { onDelete(record) },
+                        modifier = Modifier.align(Alignment.End),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("Удалить запись")
                     }
                 }
             }
@@ -66,6 +66,7 @@ fun HistoryScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
 
+        // Блок управляющих кнопок всегда прижат к нижней видимой границе
         Column(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -79,6 +80,7 @@ fun HistoryScreen(
             ) {
                 Text("Удалить всё", maxLines = 1)
             }
+
             Button(
                 onClick = {
                     coroutineScope.launch(Dispatchers.IO) {
@@ -95,7 +97,7 @@ fun HistoryScreen(
                         val file = File(context.getExternalFilesDir(null), filename)
 
                         try {
-                            // Превращаем список в JSON
+                            // Превращаем список в структурированный JSON-массив
                             val orderedRecords = records.map { record ->
                                 linkedMapOf(
                                     "time" to record.time,
@@ -117,7 +119,7 @@ fun HistoryScreen(
 
                             val jsonString = gson.toJson(orderedRecords)
 
-                            // Записываем в файл
+                            // Записываем файл в память устройства
                             file.writeText(jsonString)
 
                             launch(Dispatchers.Main) {
@@ -138,8 +140,25 @@ fun HistoryScreen(
             }
 
             Button(
-                onClick = onUpload,
-                modifier = Modifier
+                onClick = {
+                    // Проверка на наличие записей перед отправкой
+                    if (records.isEmpty()) {
+                        Toast.makeText(context, "Нет данных для экспорта", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
+
+                    val prefs = context.getSharedPreferences("user_prefs", Context.MODE_PRIVATE)
+                    val firstName = prefs.getString("first_name", "") ?: ""
+                    val lastName = prefs.getString("last_name", "") ?: ""
+                    val patronymic = prefs.getString("patronymic", "") ?: ""
+
+                    if (firstName.isBlank() || lastName.isBlank() || patronymic.isBlank()) {
+                        Toast.makeText(context, "Проверьте ФИО", Toast.LENGTH_LONG).show()
+                    } else {
+                        onUpload()
+                    }
+                },
+                modifier = modifier
                     .fillMaxWidth()
                     .height(56.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)

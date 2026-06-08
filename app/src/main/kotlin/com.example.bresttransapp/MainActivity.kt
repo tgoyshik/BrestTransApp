@@ -17,20 +17,21 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 
-
 class MainActivity : ComponentActivity() {
 
-    // Регистрируем обработчик результата входа в аккаунт Google
+    // Регистрация обработчика результата входа в аккаунт Google
     private val signInLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == RESULT_OK) {
             val data: Intent? = result.data
 
-            // Обрабатываем результат входа
+            // Обработка результата входа
             DriveAuthHelper.handleSignInResult(data) { account ->
                 account?.let {
-                    // Сохраняем имя аккаунта в SharedPreferences
+                    // Сохранение имени аккаунта в SharedPreferences
                     val prefs = getSharedPreferences("user_prefs", Context.MODE_PRIVATE)
-                    prefs.edit().putString("accountName", it.account?.name).apply()
+                    if (prefs.getString("accountName", null).isNullOrEmpty()) {
+                        prefs.edit().putString("accountName", it.account?.name).apply()
+                    }
                 }
             }
         }
@@ -39,7 +40,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var fusedLocationClient: com.google.android.gms.location.FusedLocationProviderClient
     private var userLocation by mutableStateOf<android.location.Location?>(null)
 
-    // Запрос разрешений на GPS
+    // Запрос разрешений на работу с геоданными
     private val locationPermissionRequest = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
@@ -51,46 +52,57 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Включение поддержки прозрачных системных баров
         enableEdgeToEdge()
 
         fusedLocationClient = com.google.android.gms.location.LocationServices.getFusedLocationProviderClient(this)
-        locationPermissionRequest.launch(arrayOf(
-            android.Manifest.permission.ACCESS_FINE_LOCATION,
-            android.Manifest.permission.ACCESS_COARSE_LOCATION
-        ))
 
-        // Получаем SharedPreferences для хранения состояния регистрации и аккаунта
+        // Получение SharedPreferences для проверки статуса регистрации
         val prefs = getSharedPreferences("user_prefs", Context.MODE_PRIVATE)
-
-        // Проверяем, был ли пользователь уже зарегистрирован ранее
         val isRegistered = prefs.getBoolean("is_registered", false)
 
-        // Проверяем, уже ли выполнен вход в Google аккаунт
+        // Автоматический запуск фонового таймера GPS, если доступ уже был выдан ранее
+        if (androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            startLocationUpdates()
+        }
+
+        // Проверка авторизации в Google аккаунте
         val account = GoogleSignIn.getLastSignedInAccount(this)
         if (account == null) {
-            // Если нет — запускаем интент входа
+            // Запуск интента входа, если аккаунт не найден
             val signInIntent = DriveAuthHelper.getSignInIntent(this)
             signInLauncher.launch(signInIntent)
         } else {
-            // Если аккаунт найден — сохраняем имя в prefs
-            prefs.edit().putString("accountName", account.account?.name).apply()
+            // Сохранение имени аккаунта, если сессия активна
+            if (prefs.getString("accountName", null).isNullOrEmpty()) {
+                prefs.edit().putString("accountName", account.account?.name).apply()
+            }
         }
 
+        // Установка контента Compose
         setContent {
             BrestTransAppTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
+                    // Запуск навигации с возможностью ручного триггера окна GPS
                     MainNavigation(
                         startFromRegistration = !isRegistered,
-                        userLocation = userLocation
+                        userLocation = userLocation,
+                        onRequestLocation = {
+                            locationPermissionRequest.launch(arrayOf(
+                                android.Manifest.permission.ACCESS_FINE_LOCATION,
+                                android.Manifest.permission.ACCESS_COARSE_LOCATION
+                            ))
+                        }
                     )
                 }
             }
         }
     }
 
+    // Запуск фонового обновления геолокации по таймеру
     private fun startLocationUpdates() {
         val locationRequest = com.google.android.gms.location.LocationRequest.Builder(
             com.google.android.gms.location.Priority.PRIORITY_HIGH_ACCURACY, 5000
@@ -106,5 +118,4 @@ class MainActivity : ComponentActivity() {
             fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, android.os.Looper.getMainLooper())
         }
     }
-
 }

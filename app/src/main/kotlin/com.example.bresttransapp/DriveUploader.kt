@@ -6,7 +6,6 @@ import com.google.api.client.http.FileContent
 import com.google.api.client.json.gson.GsonFactory
 import com.google.api.services.drive.Drive
 import com.google.api.services.drive.model.File
-import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
@@ -14,34 +13,52 @@ import java.util.*
 
 object DriveUploader {
 
-    // Функция перевода кириллицы в латиницу для стандартизации имен файлов
-    private fun transliterate(src: String): String {
-        val cyr = arrayOf("а","б","в","г","д","е","ё","ж","з","и","й","к","л","м","н","о","п","р","с","т","у","ф","х","ц","ч","ш","щ","ъ","ы","ь","э","ю","я", "А","Б","В","Г","Д","Е","Ё","Ж","З","И","Й","К","Л","М","Н","О","П","Р","С","Т","У","ф","Х","Ц","Ч","Ш","Щ","Ъ","Ы","Ь","Э","Ю","Я")
-        val lat = arrayOf("a","b","v","g","d","e","e","zh","z","i","y","k","l","m","n","o","p","r","s","t","u","f","h","ts","ch","sh","shch","","y","","e","yu","ya", "A","B","V","G","D","E","E","Zh","Z","I","Y","K","L","M","N","O","P","R","S","T","U","F","H","Ts","Ch","Sh","Shch","","Y","","E","Yu","Ya")
-        var result = src
-        for (i in cyr.indices) {
-            result = result.replace(cyr[i], lat[i])
+    // Таблица перевода кириллицы в латиницу для имен файлов
+    private val TRANSLIT_MAP = mapOf(
+        'а' to "a", 'б' to "b", 'в' to "v", 'г' to "g", 'д' to "d", 'е' to "e", 'ё' to "e",
+        'ж' to "zh", 'з' to "z", 'и' to "i", 'й' to "y", 'к' to "k", 'л' to "l", 'м' to "m",
+        'н' to "n", 'о' to "o", 'п' to "p", 'р' to "r", 'с' to "s", 'т' to "t", 'у' to "u",
+        'ф' to "f", 'х' to "h", 'ц' to "ts", 'ч' to "ch", 'ш' to "sh", 'щ' to "shch",
+        'ъ' to "", 'ы' to "y", 'ь' to "", 'э' to "e", 'ю' to "yu", 'я' to "ya",
+        'А' to "A", 'Б' to "B", 'В' to "V", 'Г' to "G", 'Д' to "D", 'Е' to "E", 'Ё' to "E",
+        'Ж' to "Zh", 'З' to "Z", 'И' to "I", 'Й' to "Y", 'К' to "K", 'Л' to "L", 'М' to "M",
+        'Н' to "N", 'О' to "O", 'П' to "P", 'Р' to "R", 'С' to "S", 'Т' to "T", 'У' to "U",
+        'Ф' to "F", 'Х' to "H", 'Ц' to "Ts", 'Ч' to "Ch", 'Ш' to "Sh", 'Щ' to "Shch",
+        'Ъ' to "", 'Ы' to "Y", 'Ь' to "", 'Э' to "E", 'Ю' to "Yu", 'Я' to "Ya"
+    )
+
+    // Функция перевода строки в транслит
+    private fun safeTransliterate(src: String): String {
+        val sb = StringBuilder()
+        for (char in src) {
+            sb.append(TRANSLIT_MAP[char] ?: char.toString())
         }
-        return result.replace(" ", "_") // Заменяем случайные пробелы на подчеркивание
+        return sb.toString().replace(" ", "_")
     }
 
+    /**
+     * Загружает собранные записи в формате JSON в указанную папку Google Drive.
+     */
     suspend fun uploadJsonToDrive(
         context: Context,
         records: List<TransportRecord>,
         folderId: String,
         credential: GoogleAccountCredential,
         firstName: String,
-        lastName: String
+        lastName: String,
+        patronymic: String
     ): Boolean = withContext(Dispatchers.IO) {
         try {
             if (records.isEmpty()) return@withContext false
 
+            // Создание Drive API клиента
             val driveService = Drive.Builder(
                 com.google.api.client.http.javanet.NetHttpTransport(),
                 GsonFactory.getDefaultInstance(),
                 credential
             ).setApplicationName("BrestTransApp").build()
 
+            // Формирование упорядоченного JSON-массива
             val orderedRecords = records.map { record ->
                 linkedMapOf(
                     "time" to record.time,
@@ -63,24 +80,28 @@ object DriveUploader {
 
             val jsonString = gson.toJson(orderedRecords)
 
+            // Создание временного файла в кэше приложения
             val tempFile = java.io.File(context.cacheDir, "data.json")
             tempFile.writeText(jsonString)
 
-            // Форматируем Фамилию
-            val cleanLastName = transliterate(lastName.trim()).uppercase()
-            val cleanFirstName = transliterate(firstName.trim()).lowercase().replaceFirstChar { it.uppercase() }
-
-            // Форматируем текущую дату и время (ГГГГММДД_ЧЧММ)
+            // Подготовка компонентов имени файла
+            val cleanLastName = safeTransliterate(lastName.trim()).uppercase()
+            val cleanFirstName = safeTransliterate(firstName.trim()).lowercase().replaceFirstChar { it.uppercase() }
+            val cleanPatronymic = safeTransliterate(patronymic.trim()).lowercase().replaceFirstChar { it.uppercase() }
             val dateStr = SimpleDateFormat("yyyyMMdd_HHmm", Locale.getDefault()).format(Date())
 
-            val finalFileName = "${cleanLastName}_${cleanFirstName}_${dateStr}.json"
+            val finalFileName = "${cleanLastName}_${cleanFirstName}_${cleanPatronymic}_${dateStr}.json"
 
+
+            // Создание метаданных файла для Google Drive
             val gDriveFile = File().apply {
                 name = finalFileName
                 parents = listOf(folderId)
             }
 
             val fileContent = FileContent("application/json", tempFile)
+
+            // Загрузка на Диск
             driveService.files().create(gDriveFile, fileContent).execute()
 
             true
