@@ -154,7 +154,6 @@ fun MainNavigation(
                                 return@launch
                             }
 
-                            // Возвращен проверенный старый текстовый парсер ID папки из старой версии
                             val folderId = driveLink
                                 .substringAfter("folders/")
                                 .substringBefore("?")
